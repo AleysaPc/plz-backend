@@ -1,0 +1,100 @@
+# ==========================================
+# PYTHON
+# ==========================================
+
+__pycache__/
+*.py[cod]
+*$py.class
+probar_extrusion_db.py
+probar_extrusion_service.py
+probar_extrusion.py
+probar_flexografia_rules.py
+probar_flexografia_service.py
+probar_confeccion_rules.py
+
+##
+actualizar_especificacion_3.py
+analizar_especificacion_1.py
+crear_especificacion_viable.py
+crear_nuevo_orden_prueba.py
+diagnosticar_viabilidad_15.py
+diagnosticar_viabilidad_16.py
+flujo_completo_espec3.py
+probar_especificacion_3.py
+prueba_flujo_flexografia_confeccion.py
+verificar_bobinas_flexografia.py
+verificar_estado_anterior.py
+verificar_operaciones_orden10.py
+prueba_fase1_cotizacion_pedido.py
+
+
+# Python virtual environment
+venv/
+.venv/
+env/
+ENV/
+
+# Distribution / packaging
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# ==========================================
+# DJANGO
+# ==========================================
+
+# Local database
+db.sqlite3
+db.sqlite3-journal
+
+# Django collected static files
+staticfiles/
+
+# Media files uploaded by users
+media/
+
+# ==========================================
+# ENVIRONMENT / SECRETS
+# ==========================================
+
+.env
+.env.*
+!.env.example
+
+# ==========================================
+# IDE / EDITORS
+# ==========================================
+
+.vscode/
+.idea/
+
+# ==========================================
+# WINDOWS
+# ==========================================
+
+Thumbs.db
+Desktop.ini
+
+# ==========================================
+# LOGS
+# ==========================================
+
+*.log
+
+# ==========================================
+# TEST / COVERAGE
+# ==========================================
+
+.coverage
+htmlcov/
+.pytest_cache/
+.mypy_cache/
+
+# ==========================================
+# TEMPORARY FILES
+# ==========================================
+
+*.tmp
+*.temp
+*.swp

@@ -1,0 +1,652 @@
+from rest_framework import viewsets, status
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.views import APIView
+from rest_framework.response import Response
+
+from drf_spectacular.utils import extend_schema
+
+from django.contrib.auth import get_user_model, update_session_auth_hash
+from django.db.models import Q
+from django.contrib.auth.models import Permission, Group
+from django_filters.rest_framework import DjangoFilterBackend
+from rest_framework.filters import SearchFilter, OrderingFilter
+
+from apps.usuarios.permissions import CambiarEstadoUsuarioPermission, GestionarPermisosUsuarioPermission, GestionarRolesUsuarioPermission, PermisosEfectivosUsuarioPermission, UsuarioPermission
+from apps.usuarios.pagination import PaginacionERP
+
+from .serializers import CambiarEstadoUsuarioSerializer, CambiarPasswordSerializer, UsuarioSerializer
+from apps.roles.serializers import GestionarPermisosSerializer, GestionarRolesSerializer, PermissionSerializer, RoleSerializer
+
+Usuario = get_user_model()
+
+# Vista para gestionar usuarios
+class UsuarioViewSet(viewsets.ModelViewSet):
+    queryset = Usuario.objects.all()
+    serializer_class = UsuarioSerializer
+    permission_classes = [UsuarioPermission]
+
+    # Paginación personalizada
+    pagination_class = PaginacionERP
+
+    # Herramientas de filtrado, búsqueda y ordenamiento
+    filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
+
+    # Campos para filtrar
+    filterset_fields = ["is_active"]
+
+    # Campos para buscar
+    search_fields = ["username", "email", "first_name", "last_name"]
+
+    # Campos para ordenar
+    ordering_fields = ["username", "email", "first_name", "last_name", "is_active"]
+
+    # Ordenamiento por defecto
+    ordering = ["username"]
+
+
+# Vista para gestionar roles de usuarios
+class GestionarRolesUsuarioView(APIView):
+
+    # Permisos necesarios para acceder a esta vista
+    permission_classes = [GestionarRolesUsuarioPermission]
+
+    # Obtener los roles de un usuario
+    @extend_schema(
+        responses=RoleSerializer(many=True),
+    )
+    def get(self, request, user_id):
+
+        try:
+            usuario = Usuario.objects.get(id=user_id)
+
+        except Usuario.DoesNotExist:
+            return Response(
+                {
+                    "detail": "Usuario no encontrado."
+                },
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        roles = usuario.groups.all()
+
+        serializer = RoleSerializer(
+            roles,
+            many=True,
+        )
+
+        return Response(
+            serializer.data,
+            status=status.HTTP_200_OK,
+        )
+
+    # Asignar uno o varios roles
+    @extend_schema(
+        request=GestionarRolesSerializer,
+        responses={200: None},
+    )
+    def post(self, request, user_id):
+
+        try:
+            usuario = Usuario.objects.get(id=user_id)
+
+        except Usuario.DoesNotExist:
+            return Response(
+                {
+                    "detail": "Usuario no encontrado."
+                },
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        serializer = GestionarRolesSerializer(
+            data=request.data
+        )
+
+        serializer.is_valid(
+            raise_exception=True
+        )
+
+        roles = serializer.validated_data["role_ids"]
+
+        usuario.groups.add(*roles)
+
+        return Response(
+            {
+                "detail": "Roles asignados correctamente.",
+                "user_id": usuario.id,
+                "roles": RoleSerializer(
+                    roles,
+                    many=True,
+                ).data,
+            },
+            status=status.HTTP_200_OK,
+        )
+
+    # Reemplazar todos los roles del usuario
+    @extend_schema(
+        request=GestionarRolesSerializer,
+        responses={200: None},
+    )
+    def put(self, request, user_id):
+
+        try:
+            usuario = Usuario.objects.get(
+                id=user_id
+            )
+
+        except Usuario.DoesNotExist:
+
+            return Response(
+                {
+                    "detail": "Usuario no encontrado."
+                },
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        serializer = GestionarRolesSerializer(
+            data=request.data
+        )
+
+        serializer.is_valid(
+            raise_exception=True
+        )
+
+        roles = serializer.validated_data["role_ids"]
+
+        # Reemplaza completamente los roles actuales
+        usuario.groups.set(roles)
+
+        return Response(
+            {
+                "detail": "Roles actualizados correctamente.",
+                "user_id": usuario.id,
+                "roles": RoleSerializer(
+                    roles,
+                    many=True,
+                ).data,
+            },
+            status=status.HTTP_200_OK,
+        )
+
+    # Eliminar uno o varios roles
+    @extend_schema(
+        request=GestionarRolesSerializer,
+        responses={200: None},
+    )
+    def delete(self, request, user_id):
+
+        try:
+            usuario = Usuario.objects.get(
+                id=user_id
+            )
+
+        except Usuario.DoesNotExist:
+
+            return Response(
+                {
+                    "detail": "Usuario no encontrado."
+                },
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        serializer = GestionarRolesSerializer(
+            data=request.data
+        )
+
+        serializer.is_valid(
+            raise_exception=True
+        )
+
+        roles = serializer.validated_data["role_ids"]
+
+        roles_no_asignados = [
+            role for role in roles
+            if not usuario.groups.filter(
+                id=role.id
+            ).exists()
+        ]
+
+        if roles_no_asignados:
+            return Response(
+                {
+                    "detail": (
+                        "Uno o más roles no están "
+                        "asignados al usuario."
+                    )
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        usuario.groups.remove(*roles)
+
+        return Response(
+            {
+                "detail": "Roles eliminados correctamente.",
+                "user_id": usuario.id,
+                "roles": RoleSerializer(
+                    roles,
+                    many=True,
+                ).data,
+            },
+            status=status.HTTP_200_OK,
+        )
+
+# Vista para gestionar permisos de un usuario
+class GestionarPermisosUsuarioView(APIView):
+    # Permisos basados en el modelo Usuario
+    permission_classes = [GestionarPermisosUsuarioPermission]
+
+    # Obtener permisos directos de un usuario
+    @extend_schema(
+        responses=PermissionSerializer(many=True),
+    )
+    def get(self, request, user_id):
+
+        try:
+            usuario = Usuario.objects.get(
+                id=user_id
+            )
+
+        except Usuario.DoesNotExist:
+
+            return Response(
+                {
+                    "detail": "Usuario no encontrado."
+                },
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        permisos = usuario.user_permissions.all()
+
+        serializer = PermissionSerializer(
+            permisos,
+            many=True,
+        )
+
+        return Response(
+            serializer.data,
+            status=status.HTTP_200_OK,
+        )
+
+    # Agregar uno o varios permisos
+    @extend_schema(
+        request=GestionarPermisosSerializer,
+        responses={200: None},
+    )
+    def post(self, request, user_id):
+
+        try:
+            usuario = Usuario.objects.get(
+                id=user_id
+            )
+
+        except Usuario.DoesNotExist:
+
+            return Response(
+                {
+                    "detail": "Usuario no encontrado."
+                },
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        serializer = GestionarPermisosSerializer(
+            data=request.data
+        )
+
+        serializer.is_valid(
+            raise_exception=True
+        )
+
+        permisos = serializer.validated_data[
+            "permission_ids"
+        ]
+
+        usuario.user_permissions.add(
+            *permisos
+        )
+
+        return Response(
+            {
+                "detail": (
+                    "Permisos asignados correctamente."
+                ),
+                "user_id": usuario.id,
+                "permissions": PermissionSerializer(
+                    permisos,
+                    many=True,
+                ).data,
+            },
+            status=status.HTTP_200_OK,
+        )
+
+    # Reemplazar todos los permisos directos
+    @extend_schema(
+        request=GestionarPermisosSerializer,
+        responses={200: None},
+    )
+    def put(self, request, user_id):
+
+        try:
+            usuario = Usuario.objects.get(
+                id=user_id
+            )
+
+        except Usuario.DoesNotExist:
+
+            return Response(
+                {
+                    "detail": "Usuario no encontrado."
+                },
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        serializer = GestionarPermisosSerializer(
+            data=request.data
+        )
+
+        serializer.is_valid(
+            raise_exception=True
+        )
+
+        permisos = serializer.validated_data[
+            "permission_ids"
+        ]
+
+        usuario.user_permissions.set(
+            permisos
+        )
+
+        return Response(
+            {
+                "detail": (
+                    "Permisos actualizados correctamente."
+                ),
+                "user_id": usuario.id,
+                "permissions": PermissionSerializer(
+                    permisos,
+                    many=True,
+                ).data,
+            },
+            status=status.HTTP_200_OK,
+        )
+
+    # Eliminar uno o varios permisos
+    @extend_schema(
+        request=GestionarPermisosSerializer,
+        responses={200: None},
+    )
+    def delete(self, request, user_id):
+
+        try:
+            usuario = Usuario.objects.get(
+                id=user_id
+            )
+
+        except Usuario.DoesNotExist:
+
+            return Response(
+                {
+                    "detail": "Usuario no encontrado."
+                },
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        serializer = GestionarPermisosSerializer(
+            data=request.data
+        )
+
+        serializer.is_valid(
+            raise_exception=True
+        )
+
+        permisos = serializer.validated_data[
+            "permission_ids"
+        ]
+
+        permisos_no_asignados = [
+            permission
+            for permission in permisos
+            if not usuario.user_permissions.filter(
+                id=permission.id
+            ).exists()
+        ]
+
+        if permisos_no_asignados:
+
+            return Response(
+                {
+                    "detail": (
+                        "Uno o más permisos no están "
+                        "asignados directamente al usuario."
+                    )
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        usuario.user_permissions.remove(
+            *permisos
+        )
+
+        return Response(
+            {
+                "detail": (
+                    "Permisos eliminados correctamente."
+                ),
+                "user_id": usuario.id,
+                "permissions": PermissionSerializer(
+                    permisos,
+                    many=True,
+                ).data,
+            },
+            status=status.HTTP_200_OK,
+        )
+
+# Vista para consultar permisos efectivos de un usuario
+class PermisosEfectivosUsuarioView(APIView):
+
+    # Permisos necesarios para acceder a esta vista
+    permission_classes = [PermisosEfectivosUsuarioPermission]
+
+    @extend_schema(
+        responses=PermissionSerializer(many=True),
+    )
+    def get(self, request, user_id):
+
+        try:
+            usuario = Usuario.objects.get(
+                id=user_id
+            )
+
+        except Usuario.DoesNotExist:
+
+            return Response(
+                {
+                    "detail": "Usuario no encontrado."
+                },
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        # Permisos directos del usuario
+        permisos_directos = usuario.user_permissions.all()
+
+        # Permisos heredados de los roles
+        permisos_roles = Permission.objects.filter(
+            group__user=usuario
+        )
+
+        # Unir permisos directos + permisos de roles
+        permisos_efectivos = Permission.objects.filter(
+            Q(
+                id__in=permisos_directos.values_list(
+                    "id",
+                    flat=True,
+                )
+            )
+            |
+            Q(
+                id__in=permisos_roles.values_list(
+                    "id",
+                    flat=True,
+                )
+            )
+        ).distinct()
+
+        serializer = PermissionSerializer(
+            permisos_efectivos,
+            many=True,
+        )
+
+        return Response(
+            serializer.data,
+            status=status.HTTP_200_OK,
+        )
+
+# Vista para cambiar contraseña
+class CambiarPasswordView(APIView):
+
+    permission_classes = [
+        IsAuthenticated
+    ]
+
+    @extend_schema(
+        request=CambiarPasswordSerializer,
+        responses={
+            200: None,
+        },
+    )
+    def post(self, request):
+
+        serializer = CambiarPasswordSerializer(
+            data=request.data,
+            context={
+                "request": request
+            },
+        )
+
+        serializer.is_valid(
+            raise_exception=True
+        )
+
+        usuario = request.user
+
+        usuario.set_password(
+            serializer.validated_data[
+                "password_nueva"
+            ]
+        )
+
+        usuario.save(
+            update_fields=[
+                "password"
+            ]
+        )
+
+        # Mantener la sesión actual válida cuando
+        # se utiliza autenticación basada en sesión.
+        update_session_auth_hash(
+            request,
+            usuario,
+        )
+
+        return Response(
+            {
+                "detail": (
+                    "Contraseña actualizada "
+                    "correctamente."
+                )
+            },
+            status=status.HTTP_200_OK,
+        )
+
+# Vista para cambiar estado de usuario
+class CambiarEstadoUsuarioView(APIView):
+
+    permission_classes = [
+        CambiarEstadoUsuarioPermission,
+    ]
+
+    @extend_schema(
+        request=CambiarEstadoUsuarioSerializer,
+        responses={
+            200: None,
+        },
+    )
+    def patch(self, request, user_id):
+
+        try:
+            usuario = Usuario.objects.get(
+                id=user_id
+            )
+
+        except Usuario.DoesNotExist:
+
+            return Response(
+                {
+                    "detail": "Usuario no encontrado."
+                },
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        serializer = CambiarEstadoUsuarioSerializer(
+            data=request.data
+        )
+
+        serializer.is_valid(
+            raise_exception=True
+        )
+
+        usuario.is_active = serializer.validated_data[
+            "is_active"
+        ]
+
+        usuario.save(
+            update_fields=[
+                "is_active"
+            ]
+        )
+
+        return Response(
+            {
+                "detail": (
+                    "Estado del usuario actualizado "
+                    "correctamente."
+                ),
+                "user_id": usuario.id,
+                "is_active": usuario.is_active,
+            },
+            status=status.HTTP_200_OK,
+        )
+
+class EjecutivosComercialesView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        try:
+            rol = Group.objects.get(
+                name="Ejecutivo Comercial"
+            )
+        except Group.DoesNotExist:
+            return Response(
+                {"detail": "Rol Ejecutivo Comercial no encontrado."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        usuarios = Usuario.objects.filter(
+            groups=rol,
+            is_active=True,
+        ).order_by(
+            "first_name",
+            "last_name",
+            "username",
+        )
+
+        data = [
+            {
+                "id": usuario.id,
+                "username": usuario.username,
+                "first_name": usuario.first_name,
+                "last_name": usuario.last_name,
+            }
+            for usuario in usuarios
+        ]
+
+        return Response(data)
