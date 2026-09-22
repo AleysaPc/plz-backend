@@ -61,10 +61,54 @@ class CuentaComercialViewSet(viewsets.ModelViewSet):
         data["usuario"] = self.request.user
 
         crear_cuenta_comercial(data)
+    
+    @action(detail=True, methods=["patch"])
+    def desactivar(self, request, pk=None):
+        """
+        Desactiva una cuenta comercial sin eliminarla.
+
+        Se conserva todo el historial comercial relacionado
+        con la cuenta.
+        """
+
+        cuenta = self.get_object()
+
+        cuenta.estado = CuentaComercial.Estado.INACTIVO
+
+        cuenta.save(update_fields=["estado"])
+
+        serializer = self.get_serializer(cuenta)
+
+        return Response(
+            serializer.data,
+            status=status.HTTP_200_OK,
+        )
+        
+    @action(detail=True, methods=["patch"])
+    def activar(self, request, pk=None):
+        cuenta = self.get_object()
+
+        cuenta.estado = CuentaComercial.Estado.CLIENTE
+        cuenta.save(update_fields=["estado"])
+
+        serializer = self.get_serializer(cuenta)
+        return Response(serializer.data, status=status.HTTP_200_OK)
 
 class ActividadComercialViewSet(viewsets.ModelViewSet):
     queryset = ActividadComercial.objects.all()
     serializer_class = ActividadComercialSerializer
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+
+        cuenta_comercial = self.request.query_params.get("cuenta_comercial")
+
+        if cuenta_comercial:
+            queryset = queryset.filter(
+                cuenta_comercial_id=cuenta_comercial
+            )
+
+        return queryset
 
     def perform_create(self, serializer):
         serializer.save(
@@ -75,6 +119,18 @@ class ActividadComercialViewSet(viewsets.ModelViewSet):
 class SolicitudComercialViewSet(viewsets.ModelViewSet):
     queryset = SolicitudComercial.objects.all()
     serializer_class = SolicitudComercialSerializer
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+
+        cuenta_comercial = self.request.query_params.get("cuenta_comercial")
+
+        if cuenta_comercial:
+            queryset = queryset.filter(
+                cuenta_comercial_id=cuenta_comercial
+            )
+
+        return queryset
 
     def perform_create(self, serializer):
         serializer.save(
@@ -270,9 +326,22 @@ class CotizacionVersionViewSet(viewsets.ModelViewSet):
 class CotizacionDetalleViewSet(viewsets.ModelViewSet):
     queryset = CotizacionDetalle.objects.all()
     serializer_class = CotizacionDetalleSerializer
+
 class PedidoViewSet(viewsets.ModelViewSet):
     queryset = Pedido.objects.all()
     serializer_class = PedidoSerializer
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+
+        cuenta_comercial = self.request.query_params.get("cuenta_comercial")
+
+        if cuenta_comercial:
+            queryset = queryset.filter(
+                cuenta_comercial_id=cuenta_comercial
+            )
+
+        return queryset
     
     @action(detail=False, methods=['post'])
     def crear_desde_cotizacion(self, request):

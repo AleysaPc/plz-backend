@@ -8,7 +8,8 @@ from .views import (
     PermisosEfectivosUsuarioView, 
     CambiarPasswordView, 
     CambiarEstadoUsuarioView, 
-    EjecutivosComercialesView)
+    UsuariosPorRolView,
+    )
 
 router = DefaultRouter()
 
@@ -21,7 +22,7 @@ urlpatterns = [
 
     path(
         'ejecutivos-comerciales/',
-        EjecutivosComercialesView.as_view(),
+        UsuariosPorRolView.as_view(),
         name='ejecutivos-comerciales',
     ),    
     # Consultar, asignar y eliminar roles de un usuario

@@ -118,7 +118,7 @@ class Migration(migrations.Migration):
             fields=[
                 ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
                 ('numero_piezas', models.PositiveIntegerField()),
-                ('colores', models.PositiveIntegerField()),
+                ('colores', django.contrib.postgres.fields.ArrayField(base_field=models.CharField(max_length=50), default=list, blank=True)),
                 ('descripcion', models.TextField(blank=True)),
                 ('estado', models.CharField(max_length=30)),
                 ('cliche', models.ForeignKey(on_delete=django.db.models.deletion.PROTECT, related_name='partes', to='recursos.cliche')),

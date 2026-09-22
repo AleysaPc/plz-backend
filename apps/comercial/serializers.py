@@ -15,11 +15,16 @@ from apps.comercial.models import (
     PedidoDetalle,
 )
 class CuentaComercialSerializer(serializers.ModelSerializer):
+    ejecutivo_nombre = serializers.CharField(
+        source="ejecutivo_asignado.get_full_name",
+        read_only=True,
+    )
     class Meta:
         model = CuentaComercial
         fields = [
              "id",
             "ejecutivo_asignado",
+            "ejecutivo_nombre",
             "nombres",
             "apellido_paterno",
             "apellido_materno",
