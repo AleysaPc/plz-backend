@@ -7,6 +7,7 @@ from .views import (
     EspecificacionProductoSolicitadoViewSet,
     EspecificacionBolsaSolicitadaViewSet,
     EspecificacionBobinaSolicitadaViewSet,
+    VarianteColorSolicitadaViewSet,
     ComunicacionViewSet,
     CotizacionViewSet,
     CotizacionVersionViewSet,
@@ -23,6 +24,7 @@ router.register(r"solicitudes", SolicitudComercialViewSet, basename="solicitud-c
 router.register(r"especificacion-producto-solicitado", EspecificacionProductoSolicitadoViewSet, basename="especificacion-producto")
 router.register(r"especificacion-bolsa-solicitada", EspecificacionBolsaSolicitadaViewSet, basename="especificacion-bolsa")
 router.register(r"especificacion-bobina-solicitada", EspecificacionBobinaSolicitadaViewSet, basename="especificacion-bobina")
+router.register(r"variante-color-solicitada", VarianteColorSolicitadaViewSet, basename="variante-color")
 router.register(r"comunicaciones", ComunicacionViewSet, basename="comunicacion")
 router.register(r"cotizaciones", CotizacionViewSet, basename="cotizacion")
 router.register(r"cotizaciones-versiones", CotizacionVersionViewSet, basename="cotizacion-version")

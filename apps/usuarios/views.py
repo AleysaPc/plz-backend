@@ -616,27 +616,17 @@ class CambiarEstadoUsuarioView(APIView):
             status=status.HTTP_200_OK,
         )
 
-class UsuariosPorRolView(APIView):
+class EjecutivosComercialesView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        role_id = request.query_params.get("role_id")
-
-        if not role_id:
-            return Response(
-                {
-                    "detail": "Debe proporcionar el role_id."
-                },
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
         try:
-            rol = Group.objects.get(id=role_id)
+            rol = Group.objects.get(
+                name="Ejecutivo Comercial"
+            )
         except Group.DoesNotExist:
             return Response(
-                {
-                    "detail": "Rol no encontrado."
-                },
+                {"detail": "Rol Ejecutivo Comercial no encontrado."},
                 status=status.HTTP_404_NOT_FOUND,
             )
 
@@ -649,23 +639,14 @@ class UsuariosPorRolView(APIView):
             "username",
         )
 
-        data = {
-            "rol": {
-                "id": rol.id,
-                "name": rol.name,
-            },
-            "usuarios": [
-                {
-                    "id": usuario.id,
-                    "username": usuario.username,
-                    "first_name": usuario.first_name,
-                    "last_name": usuario.last_name,
-                }
-                for usuario in usuarios
-            ],
-        }
+        data = [
+            {
+                "id": usuario.id,
+                "username": usuario.username,
+                "first_name": usuario.first_name,
+                "last_name": usuario.last_name,
+            }
+            for usuario in usuarios
+        ]
 
-        return Response(
-            data,
-            status=status.HTTP_200_OK,
-        )
+        return Response(data)

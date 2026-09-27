@@ -17,6 +17,11 @@ class Migration(migrations.Migration):
         ),
         migrations.AlterField(
             model_name='clicheparte',
+            name='colores',
+            field=django.contrib.postgres.fields.ArrayField(base_field=models.CharField(max_length=50), blank=True, default=list),
+        ),
+        migrations.AlterField(
+            model_name='clicheparte',
             name='estado',
             field=models.BooleanField(default=True),
         ),

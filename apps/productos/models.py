@@ -112,6 +112,7 @@ class EspecificacionBobina(models.Model):
     diametro_nucleo = models.DecimalField(max_digits=10,decimal_places=2,null=True,blank=True,)
     tipo_nucleo = models.CharField(max_length=100,blank=True,)
     peso = models.DecimalField(max_digits=10,decimal_places=2,null=True,blank=True,)
+    longitud = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True,)
     otras_caracteristicas = models.TextField(blank=True,)
     created_at = models.DateTimeField(auto_now_add=True,)
     updated_at = models.DateTimeField(auto_now=True,)
@@ -122,4 +123,3 @@ class EspecificacionBobina(models.Model):
 
     def __str__(self):
         return f"Especificación - {self.producto_version}"
-

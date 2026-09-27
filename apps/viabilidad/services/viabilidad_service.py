@@ -62,6 +62,7 @@ from apps.viabilidad.services.confeccion_service import (
 def evaluar_viabilidad_producto(
     especificacion_producto,
     usuario,
+    evaluacion_comercial=None,
 ):
     """
     Orquesta la evaluación completa de viabilidad de un producto.
@@ -93,21 +94,6 @@ def evaluar_viabilidad_producto(
     especificacion_bolsa = getattr(especificacion_producto,'especificacion_bolsa',None)
 
     # Paso 2: Crear EvaluacionViabilidad
-    evaluacion_comercial = (
-        especificacion_producto.evaluaciones_comerciales
-        .order_by("-fecha")
-        .first()
-    )
-    if not evaluacion_comercial:
-        return {
-            "exito": False,
-            "mensaje": (
-                "La especificación del producto no tiene una "
-                "evaluación comercial registrada."
-            ),
-            "especificacion_producto": especificacion_producto.id,
-        }
-
     evaluacion_viabilidad = EvaluacionViabilidad.objects.create(
         evaluacion_comercial=evaluacion_comercial,
         usuario=usuario,

@@ -44,6 +44,7 @@ def validar_ruta_completa(ruta):
     """
     rutas_validas = [
         ["extrusion"],
+        ["extrusion", "confeccion"],
         ["extrusion", "flexografia", "confeccion"],
     ]
 

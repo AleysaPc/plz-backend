@@ -37,7 +37,7 @@ class CuentaComercial(models.Model):
     razon_social = models.CharField(max_length=200, blank=True)
     identificacion = models.PositiveIntegerField(unique=True)
     documento_identidad = models.CharField(max_length=10, choices=DocumentoIdentidad.choices, null=True, blank=True)
-    numero_documento = models.CharField(max_length=10, blank=True)
+    numero_documento = models.CharField(max_length=10, blank=True,)
     telefono = models.CharField(max_length=30,blank=True,)
     correo = models.EmailField(max_length=254,blank=True,)
     direccion = models.CharField(max_length=300,blank=True,)
@@ -72,6 +72,7 @@ class ActividadComercial(models.Model):
         CANCELADA = "cancelada", "Cancelada"
 
     cuenta_comercial = models.ForeignKey("comercial.CuentaComercial",on_delete=models.PROTECT, related_name="actividades")
+    solicitud_comercial = models.ForeignKey("comercial.SolicitudComercial", on_delete=models.PROTECT, related_name="actividades", null=True, blank=True,)
     usuario = models.ForeignKey(settings.AUTH_USER_MODEL,on_delete=models.PROTECT,related_name="actividades_comerciales",)
     tipo = models.CharField(max_length=30,choices=Tipo.choices,)
     descripcion = models.TextField()
@@ -210,10 +211,6 @@ class EspecificacionProductoSolicitado(models.Model):
     distancia_impresion_izquierda = models.DecimalField(max_digits=10,decimal_places=2,null=True,blank=True,)
     distancia_impresion_derecha = models.DecimalField(max_digits=10,decimal_places=2,null=True,blank=True,)
     tratamiento_impresion = models.CharField(max_length=20, choices=TipoTratamientoImpresion.choices, default=TipoTratamientoImpresion.SOLIDO,)
-    distancia_impresion_arriba = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True,)
-    distancia_impresion_abajo = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True,)
-    distancia_impresion_izquierda = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True,)
-    distancia_impresion_derecha = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True,)    
     otras_caracteristicas = models.TextField(blank=True,)
     opacidad = models.CharField(max_length=20, choices=Opacidad.choices, blank=True,)
     tratamientos_acabados_especiales = ArrayField(base_field=models.CharField(max_length=30, choices=TratamientosAcabadosEspeciales.choices),default=list,blank=True,)
@@ -243,6 +240,13 @@ class EspecificacionBolsaSolicitada(models.Model):
         LATERAL = "lateral", "Lateral"
         FONDO = "fondo", "Fondo"
         NINGUNO = "ninguno", "Ninguno"
+
+    class TipoPestana(models.TextChoices):
+        SIN_PESTANA = "sin_pestana", "Sin pestaña"
+        SUPERIOR = "superior", "Superior"
+        INFERIOR = "inferior", "Inferior"
+        AMBAS = "ambas", "Superior e inferior"
+
         
     especificacion_producto_solicitado = models.OneToOneField("comercial.EspecificacionProductoSolicitado", on_delete=models.PROTECT, related_name="especificacion_bolsa",)
     ancho_doblado = models.DecimalField(max_digits=10,decimal_places=2,)
@@ -256,7 +260,7 @@ class EspecificacionBolsaSolicitada(models.Model):
     fuelle_superior = models.DecimalField(max_digits=10,decimal_places=2,null=True,blank=True,)
     tipo_troquel = models.CharField(max_length=100,blank=True, choices=TipoTroquel.choices)
     tipo_sello = models.CharField(max_length=100,blank=False, choices=TipoSello.choices)
-    pestana = models.CharField(max_length=100,blank=True,)
+    pestana = models.CharField(max_length=20, choices=TipoPestana.choices, default=TipoPestana.SIN_PESTANA,)
     otras_caracteristicas = models.TextField(blank=True,)
     created_at = models.DateTimeField(auto_now_add=True,)
     updated_at = models.DateTimeField(auto_now=True,)
@@ -276,6 +280,7 @@ class EspecificacionBobinaSolicitada(models.Model):
     diametro_nucleo = models.DecimalField(max_digits=10,decimal_places=2,null=True,blank=True,)
     tipo_nucleo = models.CharField(max_length=100,blank=True,)
     peso = models.DecimalField(max_digits=10,decimal_places=2,null=True,blank=True,)
+    longitud = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True,)
     otras_caracteristicas = models.TextField(blank=True,)
     created_at = models.DateTimeField(auto_now_add=True,)
     updated_at = models.DateTimeField(auto_now=True,)
@@ -287,13 +292,63 @@ class EspecificacionBobinaSolicitada(models.Model):
     def __str__(self):
         return f"Especificación - {self.especificacion_producto_solicitado}"
 
+class VarianteColorSolicitada(models.Model):
+    especificacion_producto_solicitado = models.ForeignKey(
+        "comercial.EspecificacionProductoSolicitado",
+        on_delete=models.PROTECT,
+        related_name="variantes_color",
+    )
+    color = models.CharField(max_length=100,)
+    cantidad = models.DecimalField(max_digits=10,decimal_places=2,)
+    created_at = models.DateTimeField(auto_now_add=True,)
+    updated_at = models.DateTimeField(auto_now=True,)
+    class Meta:
+        db_table = "variante_color_solicitada"
+        verbose_name = "Variante de color solicitada"
+        verbose_name_plural = "Variantes de color solicitadas"
+
+        constraints = [
+            models.UniqueConstraint(
+                fields=[
+                    "especificacion_producto_solicitado",
+                    "color",
+                ],
+                name="unique_color_por_especificacion",
+            )
+        ]
+    def __str__(self):
+        return f"{self.color} - {self.cantidad}"
+
+
 
 class Comunicacion(models.Model):
 
+    class Tipo(models.TextChoices):
+        LLAMADA = "llamada", "Llamada"
+        CORREO = "correo", "Correo"
+        MENSAJE = "mensaje", "Mensaje"
+        REUNION = "reunion", "Reunión"
+        VISITA = "visita", "Visita"
+        OTRO = "otro", "Otro"
+    
+    class Medio(models.TextChoices):
+        TELEFONO = "telefono", "Teléfono"
+        EMAIL = "email", "Correo electrónico"
+        WHATSAPP = "whatsapp", "WhatsApp"
+        PRESENCIAL = "presencial", "Presencial"
+        VIDEOLLAMADA = "videollamada", "Videollamada"
+        OTRO = "otro", "Otro"
+    
+    class Direccion(models.TextChoices):
+        SALIENTE = "saliente", "Ejecutivo -> Cliente"
+        ENTRANTE = "entrante", "Cliente -> Ejecutivo"
+
+
     solicitud_comercial = models.ForeignKey("comercial.SolicitudComercial",on_delete=models.PROTECT,related_name="comunicaciones",)
     usuario = models.ForeignKey(settings.AUTH_USER_MODEL,on_delete=models.PROTECT,related_name="comunicaciones_comerciales",)
-    tipo = models.CharField(max_length=30,)
-    medio = models.CharField(max_length=30,)
+    tipo = models.CharField(max_length=30, choices=Tipo.choices,)
+    medio = models.CharField(max_length=30, choices=Medio.choices,)
+    direccion = models.CharField(max_length=20, choices=Direccion.choices, null=True, blank=True,)
     asunto = models.CharField(max_length=200,null=True,blank=True,)
     contenido = models.TextField()
     created_at = models.DateTimeField(auto_now_add=True,)
@@ -434,3 +489,8 @@ class PedidoDetalle(models.Model):
 
     def __str__(self):
         return f"{self.pedido} - {self.producto_version}"
+
+
+
+    
+

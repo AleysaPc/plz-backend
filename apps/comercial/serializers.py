@@ -13,6 +13,7 @@ from apps.comercial.models import (
     CotizacionDetalle,
     Pedido,
     PedidoDetalle,
+    VarianteColorSolicitada,
 )
 class CuentaComercialSerializer(serializers.ModelSerializer):
     ejecutivo_nombre = serializers.CharField(
@@ -49,6 +50,9 @@ class CuentaComercialSerializer(serializers.ModelSerializer):
             "created_at",
             "updated_at",
         ]
+        extra_kwargs = {
+            'numero_documento': {'required': False, 'allow_blank': True},
+        }
 class ActividadComercialSerializer(serializers.ModelSerializer):
     estado = serializers.CharField(
         required=False,
@@ -59,6 +63,7 @@ class ActividadComercialSerializer(serializers.ModelSerializer):
         fields = [
             "id",
             "cuenta_comercial",
+            "solicitud_comercial",
             "usuario",
             "tipo",
             "descripcion",
@@ -89,7 +94,6 @@ class SolicitudComercialSerializer(serializers.ModelSerializer):
             "cantidad_unidades",
             "cantidad_kg",
             "fecha_entrega",
-            "lugar_entrega",
             "observaciones",
             "lugar_entrega",
             "created_at",
@@ -101,8 +105,25 @@ class SolicitudComercialSerializer(serializers.ModelSerializer):
             "created_at",
             "updated_at",
         ]
+class VarianteColorSolicitadaSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = VarianteColorSolicitada
+        fields = [
+            "id",
+            "especificacion_producto_solicitado",
+            "color",
+            "cantidad",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = [
+            "id",
+            "created_at",
+            "updated_at",
+        ]
 
 class EspecificacionProductoSolicitadoSerializer(serializers.ModelSerializer):
+    variantes_color = VarianteColorSolicitadaSerializer(many=True, required=False,)
     class Meta:
         model = EspecificacionProductoSolicitado
         fields = [
@@ -112,6 +133,7 @@ class EspecificacionProductoSolicitadoSerializer(serializers.ModelSerializer):
             "material",
             "apto_alimento",
             "micraje",
+            "capas",
             "color_bolsa",
             "impresion",
             "color_impresion",
@@ -120,6 +142,9 @@ class EspecificacionProductoSolicitadoSerializer(serializers.ModelSerializer):
             "opacidad",
             "tratamientos_acabados_especiales",
             "posicion_impresion",
+            "variantes_color",
+            "cara_impresion",
+            "tratamiento_impresion",
             "distancia_impresion_superior",
             "distancia_impresion_inferior",
             "distancia_impresion_izquierda",
@@ -169,6 +194,7 @@ class EspecificacionBobinaSolicitadaSerializer(serializers.ModelSerializer):
             "ancho",
             "diametro",
             "diametro_nucleo",
+            "longitud",
             "tipo_nucleo",
             "peso",
             "otras_caracteristicas",
@@ -190,6 +216,7 @@ class ComunicacionSerializer(serializers.ModelSerializer):
             "usuario",
             "tipo",
             "medio",
+            "direccion",
             "asunto",
             "contenido",
             "created_at",

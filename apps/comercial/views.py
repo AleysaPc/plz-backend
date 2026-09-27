@@ -3,6 +3,9 @@ from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from django.contrib.auth import get_user_model
+from django.db import transaction
+from django.utils import timezone
+from rest_framework.response import Response
 
 from apps.comercial.models import (
     CuentaComercial,
@@ -11,6 +14,7 @@ from apps.comercial.models import (
     EspecificacionProductoSolicitado,
     EspecificacionBobinaSolicitada,
     EspecificacionBolsaSolicitada,
+    VarianteColorSolicitada,
     Comunicacion,
     Cotizacion,
     CotizacionVersion,
@@ -31,6 +35,7 @@ from apps.comercial.serializers import (
     CotizacionDetalleSerializer,
     PedidoSerializer,
     PedidoDetalleSerializer,
+    VarianteColorSolicitadaSerializer,
 )
 from apps.comercial.services.cotizacion_service import (
     crear_cotizacion,
@@ -108,6 +113,9 @@ class ActividadComercialViewSet(viewsets.ModelViewSet):
                 cuenta_comercial_id=cuenta_comercial
             )
 
+        # Ordenar por fecha_programada descendente (más reciente primero)
+        queryset = queryset.order_by('-fecha_programada')
+
         return queryset
 
     def perform_create(self, serializer):
@@ -132,10 +140,54 @@ class SolicitudComercialViewSet(viewsets.ModelViewSet):
 
         return queryset
 
-    def perform_create(self, serializer):
-        serializer.save(
-            usuario=self.request.user,
+    @transaction.atomic
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        # ============================================================
+        # CREAR REQUERIMIENTO
+        # ============================================================
+
+        solicitud = serializer.save(
+            usuario=request.user,
             estado=SolicitudComercial.Estado.RECIBIDA,
+        )
+
+        # ============================================================
+        # CREAR ACTIVIDAD AUTOMÁTICA
+        # ============================================================
+
+        actividad = ActividadComercial.objects.create(
+            cuenta_comercial=solicitud.cuenta_comercial,
+            solicitud_comercial=solicitud,
+            usuario=request.user,
+            tipo=ActividadComercial.Tipo.SEGUIMIENTO,
+            descripcion=(
+                f"Seguimiento inicial del requerimiento #{solicitud.id}."
+            ),
+            fecha_programada=timezone.now(),
+            estado=ActividadComercial.Estado.PENDIENTE,
+        )
+
+        # ============================================================
+        # RESPUESTA
+        # ============================================================
+
+        response_data = serializer.data
+
+        response_data["actividad_creada"] = {
+            "id": actividad.id,
+            "tipo": actividad.tipo,
+            "estado": actividad.estado,
+        }
+
+        headers = self.get_success_headers(serializer.data)
+
+        return Response(
+            response_data,
+            status=status.HTTP_201_CREATED,
+            headers=headers,
         )
 
     @action(detail=True, methods=["get"])
@@ -145,6 +197,7 @@ class SolicitudComercialViewSet(viewsets.ModelViewSet):
         especificacion_producto = (
             EspecificacionProductoSolicitado.objects
             .filter(solicitud_comercial=solicitud)
+            .prefetch_related('variantes_color')
             .first()
         )
 
@@ -170,7 +223,7 @@ class SolicitudComercialViewSet(viewsets.ModelViewSet):
 
         return Response({
             "solicitud": SolicitudComercialSerializer(solicitud).data,
-            
+
             "cuentaComercial": CuentaComercialSerializer(
                 solicitud.cuenta_comercial
             ).data,
@@ -182,6 +235,7 @@ class SolicitudComercialViewSet(viewsets.ModelViewSet):
                 if especificacion_producto
                 else None
             ),
+
             "especificacionBolsa": (
                 EspecificacionBolsaSolicitadaSerializer(
                     especificacion_bolsa
@@ -189,6 +243,7 @@ class SolicitudComercialViewSet(viewsets.ModelViewSet):
                 if especificacion_bolsa
                 else None
             ),
+
             "especificacionBobina": (
                 EspecificacionBobinaSolicitadaSerializer(
                     especificacion_bobina
@@ -207,13 +262,55 @@ class EspecificacionBobinaSolicitadaViewSet(viewsets.ModelViewSet):
     queryset = EspecificacionBobinaSolicitada.objects.all()
     serializer_class = EspecificacionBobinaSolicitadaSerializer
 
+class VarianteColorSolicitadaViewSet(viewsets.ModelViewSet):
+    queryset = VarianteColorSolicitada.objects.all()
+    serializer_class = VarianteColorSolicitadaSerializer
+
 class ComunicacionViewSet(viewsets.ModelViewSet):
-    queryset = Comunicacion.objects.all()
+    queryset = Comunicacion.objects.all().order_by("created_at")
     serializer_class = ComunicacionSerializer
 
+    def get_queryset(self):
+        queryset = super().get_queryset()
+
+        cuenta_comercial = self.request.query_params.get(
+            "cuenta_comercial"
+        )
+
+        solicitud_comercial = self.request.query_params.get(
+            "solicitud_comercial"
+        )
+
+        if cuenta_comercial:
+            queryset = queryset.filter(
+                solicitud_comercial__cuenta_comercial_id=cuenta_comercial
+            )
+
+        if solicitud_comercial:
+            queryset = queryset.filter(
+                solicitud_comercial_id=solicitud_comercial
+            )
+
+        return queryset
+
     def perform_create(self, serializer):
-        serializer.save(
+        comunicacion = serializer.save(
             usuario=self.request.user
+        )
+
+        solicitud = comunicacion.solicitud_comercial
+
+        # La solicitud pasa a negociación
+        if solicitud.estado == SolicitudComercial.Estado.RECIBIDA:
+            solicitud.estado = SolicitudComercial.Estado.EN_NEGOCIACION
+            solicitud.save(update_fields=["estado"])
+
+        # La actividad asociada pasa a proceso
+        ActividadComercial.objects.filter(
+            solicitud_comercial=solicitud,
+            estado=ActividadComercial.Estado.PENDIENTE,
+        ).update(
+            estado=ActividadComercial.Estado.EN_PROCESO
         )
 
 class CotizacionViewSet(viewsets.ModelViewSet):
