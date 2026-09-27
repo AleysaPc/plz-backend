@@ -92,6 +92,8 @@ def evaluar_viabilidad_producto(
 
     # Obtener especificaciones relacionadas
     especificacion_bolsa = getattr(especificacion_producto,'especificacion_bolsa',None)
+    especificacion_bobina = getattr(especificacion_producto,'especificacion_bobina',None)
+
 
     # Paso 2: Crear EvaluacionViabilidad
     evaluacion_viabilidad = EvaluacionViabilidad.objects.create(
@@ -121,6 +123,7 @@ def evaluar_viabilidad_producto(
             resultado = evaluar_extrusion_completa(
                 especificacion=especificacion_producto,
                 especificacion_bolsa=especificacion_bolsa,
+                especificacion_bobina=especificacion_bobina,
             )
             guardar_resultados_viabilidad_extrusion(
                 resultado["resultados_evaluacion"],

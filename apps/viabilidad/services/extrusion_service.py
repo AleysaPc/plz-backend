@@ -21,22 +21,45 @@ from apps.viabilidad.rules.extrusion_rules import (
 def evaluar_maquina_extrusion(
     especificacion,
     especificacion_bolsa,
+    especificacion_bobina,
     capacidad,
 ):
     """
     Evalúa una máquina de extrusión contra una especificación
     de producto solicitada.
-
-    No guarda información en la base de datos.
     """
 
+    ancho_requerido = obtener_ancho_requerido_extrusion(
+        especificacion_bolsa=especificacion_bolsa,
+        especificacion_bobina=especificacion_bobina,
+    )
+
     resultados = [
-        validar_material(especificacion,capacidad),
-        validar_ancho(especificacion_bolsa,capacidad,),
-        validar_micraje(especificacion,capacidad,),
-        validar_capas(especificacion,capacidad,),
-        validar_fuelle(especificacion_bolsa,capacidad,),
+        validar_material(
+            especificacion,
+            capacidad,
+        ),
+        validar_ancho(
+            ancho_requerido,
+            capacidad,
+        ),
+        validar_micraje(
+            especificacion,
+            capacidad,
+        ),
+        validar_capas(
+            especificacion,
+            capacidad,
+        ),
     ]
+
+    if especificacion_bolsa is not None:
+        resultados.append(
+            validar_fuelle(
+                especificacion_bolsa,
+                capacidad,
+            )
+        )
 
     cumple_todo = all(
         resultado["cumple"]
@@ -59,6 +82,7 @@ def evaluar_maquina_extrusion(
 def evaluar_extrusion(
     especificacion,
     especificacion_bolsa,
+    especificacion_bobina,
     ):
     """
     Evalúa todas las máquinas de extrusión registradas
@@ -80,6 +104,7 @@ def evaluar_extrusion(
         resultado = evaluar_maquina_extrusion(
             especificacion=especificacion,
             especificacion_bolsa=especificacion_bolsa,
+            especificacion_bobina=especificacion_bobina,
             capacidad=capacidad,
         )
 
@@ -333,6 +358,7 @@ def guardar_resultados_viabilidad_extrusion(
 def evaluar_extrusion_completa(
     especificacion,
     especificacion_bolsa,
+    especificacion_bobina,
 ):
     """
     Ejecuta el flujo completo de viabilidad de extrusión.
@@ -350,6 +376,7 @@ def evaluar_extrusion_completa(
     resultados = evaluar_extrusion(
         especificacion=especificacion,
         especificacion_bolsa=especificacion_bolsa,
+        especificacion_bobina=especificacion_bobina,
     )
 
     consolidado = consolidar_resultados_extrusion(
@@ -414,3 +441,31 @@ def evaluar_extrusion_completa(
             consolidado["maquinas_no_disponibles"]
         ),
     }
+def obtener_ancho_requerido_extrusion(
+    especificacion_bolsa=None,
+    especificacion_bobina=None,
+):
+    """
+    Determina el ancho de película que debe producir Extrusión.
+
+    Bolsa con fuelle:
+        ancho_doblado
+
+    Bolsa sin fuelle:
+        ancho_desdoblado
+
+    Bobina:
+        ancho
+    """
+
+    if especificacion_bobina is not None:
+        return especificacion_bobina.ancho
+
+    if especificacion_bolsa is not None:
+
+        if especificacion_bolsa.fuelle:
+            return especificacion_bolsa.ancho_doblado
+
+        return especificacion_bolsa.ancho_desdoblado
+
+    return None

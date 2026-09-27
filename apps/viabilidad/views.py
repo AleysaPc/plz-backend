@@ -97,6 +97,7 @@ class EvaluacionViabilidadViewSet(viewsets.ModelViewSet):
         resultado = evaluar_viabilidad_producto(
             especificacion_producto=especificacion_producto,
             usuario=request.user,
+            evaluacion_comercial=None,  
         )
 
         if not resultado.get("exito", True):

@@ -56,6 +56,10 @@ from apps.comercial.services.cuenta_comercial_service import (
     crear_cuenta_comercial,
 )
 
+from apps.viabilidad.services.viabilidad_service import (
+    evaluar_viabilidad_producto,
+)
+
 User = get_user_model()
 class CuentaComercialViewSet(viewsets.ModelViewSet):
     queryset = CuentaComercial.objects.all()
@@ -252,6 +256,62 @@ class SolicitudComercialViewSet(viewsets.ModelViewSet):
                 else None
             ),
         })
+
+    @action(detail=True, methods=["post"])
+    @transaction.atomic
+    def evaluar_viabilidad(self, request, pk=None):
+        """
+        Ejecuta la evaluación técnica de viabilidad
+        de la especificación del producto asociada
+        a la solicitud comercial.
+        """
+
+        solicitud = self.get_object()
+
+        # Obtener especificación del producto
+        especificacion_producto = (
+            EspecificacionProductoSolicitado.objects
+            .filter(
+                solicitud_comercial=solicitud
+            )
+            .first()
+        )
+
+        if not especificacion_producto:
+            return Response(
+                {
+                    "error": (
+                        "La solicitud no tiene una "
+                        "especificación de producto."
+                    )
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Ejecutar evaluación de viabilidad
+        resultado = evaluar_viabilidad_producto(
+            especificacion_producto=especificacion_producto,
+            usuario=request.user,
+            evaluacion_comercial=None,
+        )
+
+        return Response(
+            {
+                "mensaje": "Evaluación de viabilidad ejecutada correctamente.",
+                "solicitud_id": solicitud.id,
+                "evaluacion_viabilidad_id": (
+                    resultado["evaluacion_viabilidad"].id
+                ),
+                "ruta": resultado["ruta"],
+                "descripcion_ruta": resultado["descripcion_ruta"],
+                "viable_global": resultado["viable_global"],
+                "procesos_viables": resultado["procesos_viables"],
+                "procesos_no_viables": (
+                    resultado["procesos_no_viables"]
+                ),
+            },
+            status=status.HTTP_200_OK,
+        )
 class EspecificacionProductoSolicitadoViewSet(viewsets.ModelViewSet):
     queryset = EspecificacionProductoSolicitado.objects.all()
     serializer_class = EspecificacionProductoSolicitadoSerializer

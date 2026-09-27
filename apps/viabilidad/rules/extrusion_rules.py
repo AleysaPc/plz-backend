@@ -51,30 +51,47 @@ def validar_material(especificacion, capacidad):
     )
 
 
-def validar_ancho(especificacion_bolsa, capacidad):
+def validar_ancho(ancho_requerido, capacidad):
     """
-    Verifica que el ancho doblado solicitado esté dentro
-    del rango permitido por la máquina de extrusión.
+    Verifica que el ancho de película requerido para
+    extrusión esté dentro del rango permitido por la máquina.
     """
 
-    ancho = especificacion_bolsa.ancho_doblado
+    if ancho_requerido is None:
+        return _resultado(
+            criterio="ancho",
+            cumple=False,
+            valor_solicitado=None,
+            valor_capacidad={
+                "min": capacidad.ancho_min,
+                "max": capacidad.ancho_max,
+            },
+            mensaje=(
+                "No se pudo determinar el ancho de película "
+                "requerido para extrusión."
+            ),
+        )
+
     ancho_min = capacidad.ancho_min
     ancho_max = capacidad.ancho_max
 
-    cumple = ancho_min <= ancho <= ancho_max
+    cumple = ancho_min <= ancho_requerido <= ancho_max
 
     return _resultado(
         criterio="ancho",
         cumple=cumple,
-        valor_solicitado=ancho,
+        valor_solicitado=ancho_requerido,
         valor_capacidad={
             "min": ancho_min,
             "max": ancho_max,
         },
         mensaje=(
-            "El ancho solicitado está dentro del rango permitido."
+            "El ancho de película solicitado está dentro "
+            "del rango permitido."
             if cumple
-            else "El ancho solicitado está fuera del rango permitido."
+            else
+            "El ancho de película solicitado está fuera "
+            "del rango permitido."
         ),
     )
 
